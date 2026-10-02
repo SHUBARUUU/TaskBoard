@@ -23,13 +23,13 @@ class TaskController extends Controller
     // 1. GET /api/tasks 
     // Triggered when React wants a list of ALL tasks
     public function index(){
-        return Task::all();
+        return Task::all();//   Returns the tasks
     }
     // 2. POST /api/tasks 
     // Triggered when React sends a JSON payload to CREATE a new task
-    public function store(Request $request)
-    {
-        $task = Task::create($request->all());
+    public function store(Request $request){
+        $task = Task::create($request->all());//    Creates a task from $request (JSON Format)
+
         return response()->json($task, 201);
     }
 
@@ -37,20 +37,30 @@ class TaskController extends Controller
     // Triggered when React wants to view ONE specific task (e.g., /api/tasks/5)
     public function show(string $id)
     {
-        // We will write this later
+        $task = Task::findOrFail($id);
+
+        return response()->json($task, 200);
     }
 
     // 4. PUT /api/tasks/{id} 
     // Triggered when React wants to UPDATE a specific task
     public function update(Request $request, string $id)
     {
-        // We will write this later
+        $task = Task::findOrFail($id);//    Find Specific Task (Will send an error 404 Not Found if failed.)
+
+        $task->update($request->all());//  Updates the task found
+
+        return response()->json($task, 200);
     }
 
     // 5. DELETE /api/tasks/{id} 
     // Triggered when React wants to DELETE a specific task
     public function destroy(string $id)
     {
-        // We will write this later
+        $task = Task::findOrFail($id);
+
+        $task->delete();
+
+        return response()->json(null, 204);
     }
 }

@@ -8,6 +8,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+
 // Api Resource is a shortcut that automatically maps the standard HTTP requests.
 // If we didn't use this, we would have to manually write out all 5 routes like this:
 // Route::get('/tasks', [TaskController::class, 'index']);
