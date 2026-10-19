@@ -15,7 +15,7 @@ return new class extends Migration
                 $table->id();
 
                 //  This link the tast to a specifc user account.
-                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->foreignId('user_id')->default(1)->constrained()->onDelete('cascade');
 
                 $table->string('title');
                 $table->text('description')->nullable();
