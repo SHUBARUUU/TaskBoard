@@ -35,7 +35,11 @@ function App() {
   // const [newTask, setNewTask] = useState("");
 
   //* newTask as an object. Uses object with multiple attributes w their own default values
-  const [newTask, setNewTask] = useState({ title: "", description: "" });
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    priority: "medium",
+  });
 
   const handleCreate = () => {
     // 1. Send POST request to laravel
@@ -48,6 +52,7 @@ function App() {
         title: newTask.title,
         description: newTask.description,
         status: "pending",
+        priority: newTask.priority,
       }),
     })
       .then((response) => response.json())
@@ -60,7 +65,7 @@ function App() {
         setTasks([...tasks, createdTask]);
 
         // 3. Clear the input box so they can type another one
-        setNewTask({ title: "", description: "" });
+        setNewTask({ title: "", description: "", priority: "medium" });
       })
       .catch((error) => console.error("Error creating task:", error));
   };
@@ -126,9 +131,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#17162b] text-white flex justify-center py-10 px-5 font-sans">
-      <div className="w-full max-w-2xl">
+      {/* Increased max-width from 2xl to 5xl to fit two columns comfortably */}
+      <div className="w-full max-w-5xl">
         {/* --- CENTERED HEADER --- */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <h1
             className="text-4xl font-extrabold tracking-tight mb-4 drop-shadow-md"
             style={{
@@ -140,63 +146,87 @@ function App() {
           >
             MY TASKBOARD
           </h1>
-        </div>
 
-        {/* --- CREATE TASK FORM CONTAINER --- */}
-        <div className="flex gap-3 bg-[#222138] p-4 rounded-xl border border-[#3b3a54] mb-6 shadow-lg">
-          <input
-            className="flex-1 bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] placeholder-[#a1a0bd]"
-            type="text"
-            placeholder="Enter task title"
-            value={newTask.title}
-            onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-          />
-          <input
-            className="flex-1 bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] placeholder-[#a1a0bd]"
-            type="text"
-            placeholder="Enter task description"
-            value={newTask.description}
-            onChange={(e) =>
-              setNewTask({ ...newTask, description: e.target.value })
-            }
-          />
-          <button
-            className="bg-[#6f55f6] hover:bg-[#5b41e0] text-white px-5 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition shadow-md"
-            onClick={handleCreate}
-          >
-            Add Task
-          </button>
-        </div>
-
-        {/* --- CENTERED & SPACED TASK COUNTER (Right after form, before list) --- */}
-        <div className="text-center mb-6">
+          {/* Moved counter up here to sit exactly between the title and the columns */}
           <p className="inline-flex items-center gap-2 text-[#a1a0bd] text-sm font-medium bg-[#222138] px-4 py-1.5 rounded-full border border-[#3b3a54] shadow-inner">
             <span className="w-2 h-2 rounded-full bg-[#6f55f6] animate-pulse"></span>
             Loaded {tasks.length} tasks from database
           </p>
         </div>
 
-        {/* --- TASK LIST --- */}
-        <div className="flex flex-col gap-3">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className="bg-[#222138] border border-[#3b3a54] hover:border-[#6f55f6] rounded-xl p-4 transition shadow-md"
+        {/* --- TWO-COLUMN LAYOUT WRAPPER --- */}
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+          {/* --- LEFT COLUMN: CREATE TASK FORM --- */}
+          <div className="w-full md:w-1/3 flex flex-col gap-3 bg-[#222138] p-4 rounded-xl border border-[#3b3a54] shadow-lg sticky top-5">
+            <input
+              className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] placeholder-[#a1a0bd]"
+              type="text"
+              placeholder="Enter task title"
+              value={newTask.title || ""}
+              onChange={(e) =>
+                setNewTask({ ...newTask, title: e.target.value })
+              }
+            />
+            <textarea
+              className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] placeholder-[#a1a0bd] min-h-[100px] resize-none"
+              placeholder="Enter task description"
+              value={newTask.description || ""}
+              onChange={(e) =>
+                setNewTask({ ...newTask, description: e.target.value })
+              }
+            />
+
+            {/* Priority Dropdown */}
+            {/* Dropdowns needs to have default value inserted in ther objects (Check the object above), otherwise a bug happens where the event for select tag doesnt trigger rendering the initial value it was sittin on useless. */}
+            <div className="relative">
+              <select
+                className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] appearance-none cursor-pointer"
+                // If newTask.priority has a default value the select will find its matching value from its option tags and display whats in there.
+                value={newTask.priority || "Medium"}
+                onChange={(e) =>
+                  setNewTask({ ...newTask, priority: e.target.value })
+                }
+              >
+                <option value="low" className="bg-[#17162b]">
+                  Low
+                </option>
+                <option value="medium" className="bg-[#17162b]">
+                  Medium
+                </option>
+                <option value="high" className="bg-[#17162b]">
+                  High
+                </option>
+              </select>
+            </div>
+
+            <button
+              className="bg-[#6f55f6] hover:bg-[#5b41e0] text-white px-5 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition shadow-md mt-2"
+              onClick={handleCreate}
             >
-              {editingId === task.id ? (
-                /* --- EDIT MODE --- */
-                <div className="flex justify-between items-center gap-4">
-                  <div className="flex flex-1 gap-2.5">
+              Add Task
+            </button>
+          </div>
+
+          {/* --- RIGHT COLUMN: TASK LIST --- */}
+          <div className="w-full md:w-2/3 flex flex-col gap-3">
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className="bg-[#222138] border border-[#3b3a54] hover:border-[#6f55f6] rounded-xl p-4 transition shadow-md"
+              >
+                {editingId === task.id ? (
+                  /* --- EDIT MODE --- */
+                  <div className="flex flex-col gap-3">
                     <input
-                      className="flex-1 bg-[#17162b] border border-[#3b3a54] text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-[#6f55f6]"
-                      value={editForm.title}
+                      className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-[#6f55f6]"
+                      value={editForm.title || ""}
                       onChange={(e) =>
                         setEditForm({ ...editForm, title: e.target.value })
                       }
                     />
                     <input
-                      className="flex-1 bg-[#17162b] border border-[#3b3a54] text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-[#6f55f6]"
-                      value={editForm.description}
+                      className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-[#6f55f6]"
+                      value={editForm.description || ""}
                       onChange={(e) =>
                         setEditForm({
                           ...editForm,
@@ -204,60 +234,62 @@ function App() {
                         })
                       }
                     />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      className="bg-[#6f55f6] hover:bg-[#5b41e0] text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                      onClick={() => handleUpdate(task)}
-                    >
-                      Save
-                    </button>
-                    <button
-                      className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                      onClick={() => setEditingId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* --- VIEW MODE --- */
-                <div className="flex justify-between items-center gap-4">
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-base font-semibold text-white">
-                      {task.title}
-                    </h3>
-                    <p className="text-sm text-[#a1a0bd]">{task.description}</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#6f55f6]/20 text-[#9d8aff] border border-[#6f55f6]/40">
-                        {task.status}
-                      </span>
-                      {task.priority && (
-                        <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#a1a0bd]/10 text-[#a1a0bd] border border-[#3b3a54]">
-                          {task.priority}
-                        </span>
-                      )}
+                    <div className="flex gap-2 justify-end mt-1">
+                      <button
+                        className="bg-[#6f55f6] hover:bg-[#5b41e0] text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
+                        onClick={() => handleUpdate(task)}
+                      >
+                        Save
+                      </button>
+                      <button
+                        className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
+                        onClick={() => setEditingId(null)}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
+                ) : (
+                  /* --- VIEW MODE --- */
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-base font-semibold text-white">
+                        {task.title}
+                      </h3>
+                      <p className="text-sm text-[#a1a0bd]">
+                        {task.description}
+                      </p>
+                      <div className="flex gap-2 mt-2">
+                        <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#6f55f6]/20 text-[#9d8aff] border border-[#6f55f6]/40">
+                          {task.status}
+                        </span>
+                        {task.priority && (
+                          <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#a1a0bd]/10 text-[#a1a0bd] border border-[#3b3a54]">
+                            {task.priority}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                      onClick={() => handleEditClick(task)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="bg-[#ff4d4d]/15 hover:bg-[#ff4d4d] text-[#ff4d4d] hover:text-white border border-[#ff4d4d]/30 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                      onClick={() => handleDelete(task.id)}
-                    >
-                      Delete
-                    </button>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <button
+                        className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
+                        onClick={() => handleEditClick(task)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="bg-[#ff4d4d]/15 hover:bg-[#ff4d4d] text-[#ff4d4d] hover:text-white border border-[#ff4d4d]/30 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
+                        onClick={() => handleDelete(task.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
