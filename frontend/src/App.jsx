@@ -1,8 +1,13 @@
-/* Hooks:
- * useState -> React's way of remembering things (memory)
- * useEffect -> React's way of doing things automatically when a page loads(action)
- */
+/*\ Hooks:*/
+
+/* \* useState -> React's way of remembering things (memory)*/
+
+/* \* useEffect -> React's way of doing things automatically when a page loads(action)*/
+
+/**/
+
 import { useState, useEffect } from "react";
+
 import "./App.css";
 
 function App() {
@@ -12,42 +17,76 @@ function App() {
    *   the data changed and can automatically redraw the screen.
    * useState([]): Telling React that tasks, should start as an empty array.
    */
-  //* Additional info: Array Destructuring
+  // Additional info: Array Destructuring
   const [tasks, setTasks] = useState([]);
+
+  // ADDED: Remembers which task is currently being focused.
+  const [focusedTask, setFocusedTask] = useState(null);
 
   /*
    * API calls directly inside a React component will result in an infinite loop, crashing your broswer and spamming server 1000x a sec.
    * Using useEffect, and adding empty array at the end gives rule -> Only run this code EXACTLY ONE TIME, the moment page loads.
    */
-  //* Additional info: Dependency array/Watch list.
+  /*
+   * Additional infos:
+   *   Dependency array/Watch list.
+   *   catch per fetch only checks if the fetch is whether successful or not. It doesnt check the http code that was sent (200-400)
+   */
   useEffect(() => {
     fetch("http://localhost:8000/api/tasks")
-      .then((response) => response.json())
+      .then((response) => {
+        /* Checks the HTTP Code that was sent if its within 200 bound, If not its error and will throw an error message from backend so that the catch can trigger.*/
+        if (!response.ok) {
+          return response.json().then((err) => {
+            throw err;
+          });
+        }
+        return response.json();
+      })
       .then((data) => {
-        //* Prints in console the data from the database
+        /* Prints in console the data from the database*/
         console.log("Here's your data: ", data);
         setTasks(data);
       })
-      .catch((error) => console.error("Error fetching tasks:", error));
+      .catch((error) => console.error("Error fetching tasks: ", error));
   }, []);
 
-  //* newTask as a single data. Uses a single string as a default value.
+  // ADDED: Fetches one specific task using Laravel's show() endpoint.
+  const handleFocus = (id) => {
+    fetch(`http://localhost:8000/api/tasks/${id}`)
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((err) => {
+            throw err;
+          });
+        }
+
+        return response.json();
+      })
+      .then((data) => {
+        setFocusedTask(data);
+      })
+      .catch((error) => console.error("Error fetching focused task: ", error));
+  };
+
+  /* newTask as a single data. Uses a single string as a default value.*/
   // const [newTask, setNewTask] = useState("");
 
-  //* newTask as an object. Uses object with multiple attributes w their own default values
+  /* newTask as an object. Uses object with multiple attributes w their own default values*/
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
     priority: "medium",
   });
 
+  /* Modified the create to accomadate the logic of backend (currently http codes will produce a bug if its beyond 400 (error))*/
   const handleCreate = () => {
     // 1. Send POST request to laravel
     fetch("http://localhost:8000/api/tasks", {
       method: "POST", // The action/ What to do
       headers: { "Content-Type": "application/json" }, // The shipping label & id badge of the package
 
-      //* Package the new task into the JSON box Laravel expects
+      /* Package the new task into the JSON box Laravel expects*/
       body: JSON.stringify({
         title: newTask.title,
         description: newTask.description,
@@ -55,39 +94,60 @@ function App() {
         priority: newTask.priority,
       }),
     })
-      .then((response) => response.json())
+      .then((response) => {
+        // 1. Read the sticker on the outside of the box FIRST
+        if (!response.ok) {
+          // 2. If it's a 422, throw an error. This instantly aborts the .then()
+          // chain and acts as a teleport directly to the .catch() block.
+          /* OPTIONAL: throw new Error("Backend blocked the request!");*/
+          return response.json().then((err) => {
+            throw err;
+          });
+        }
+        // 3. If the sticker says 200 OK, THEN you open the box.
+        return response.json();
+      })
       .then((createdTask) => {
-        /* 2. MAGIC TRICK:
+        /*
+         * 2. MAGIC TRICK:
          * Grab the existing tasks shelf (...tasks), drop the new task at the end, and
          * instantly redraw the screen
          */
-        //* Spread Operator: Dump all existing task from old array, put it inside a new array alongside a new task.
+        /* Spread Operator: Dump all existing task from old array, put it inside a new array alongside a new task.*/
         setTasks([...tasks, createdTask]);
 
         // 3. Clear the input box so they can type another one
         setNewTask({ title: "", description: "", priority: "medium" });
       })
-      .catch((error) => console.error("Error creating task:", error));
+      .catch((error) => console.error("Error creating task: ", error));
   };
 
   const handleDelete = (id) => {
-    /*  When you send a response from laravel it unpacks the data that was sent alongside a message.
-        For DELETE methods, it produces an error if we try to unpack a null data. So response is optionally can be place.
-        However, we still need to get the message to ensure deletion.
-    */
-    //*  Deleting happens in the fetch side
+    /*
+     * When you send a response from laravel it unpacks the data that was sent alongside a message.
+     * For DELETE methods, it produces an error if we try to unpack a null data. So response is optionally can be place.
+     * However, we still need to get the message to ensure deletion.
+     */
+    /* Deleting happens in the fetch side*/
     fetch(`http://localhost:8000/api/tasks/${id}`, {
       method: "DELETE",
     })
       .then((response) => {
-        if (response.ok) {
-          //* After deletion we set the tasks list by getting only the tasks that aren't equal to the id.
-          setTasks(tasks.filter((task) => task.id !== id));
-        } else {
-          console.error("Backend/Laravel refused to delete the task!");
+        if (!response.ok) {
+          // response.json() is asynchronous and returns a Promise.
+          // We must chain .then() to actually unwrap and read the JSON error message Laravel sent.
+          return response.json().then((err) => {
+            throw err;
+          });
         }
+
+        /* After deletion we set the tasks list by getting only the tasks that aren't equal to the id.*/
+        setTasks(tasks.filter((task) => task.id !== id));
+
+        // ADDED: If the deleted task was focused, clear the focused panel.
+        setFocusedTask((current) => (current?.id === id ? null : current));
       })
-      .catch((error) => console.error("Network error:", error));
+      .catch((error) => console.error("Error deleting task: ", error));
   };
 
   // This remembers exactly WHICH task we are currently editing (by its ID)
@@ -114,19 +174,32 @@ function App() {
       body: JSON.stringify({
         title: editForm.title,
         description: editForm.description,
-        status: editForm.status,
       }),
     })
-      .then((response) => response.json()) // 4. Unpack the fresh box from Laravel
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((err) => {
+            throw err;
+          });
+        }
+
+        return response.json();
+      }) // 4. Unpack the fresh box from Laravel
       .then((updatedTask) => {
         // 5. The Factory Inspector (.map)
         // Swap the old task on the screen with the newly updated one
         setTasks(tasks.map((t) => (t.id === task.id ? updatedTask : t)));
-        //* .map() returns an array. This block of code determines if the current task iterating, is the task that we update, if so we change it if not still use the same object (t).
+
+        /* .map() returns an array. This block of code determines if the current task iterating, is the task that we update, if so we change it if not still use the same object (t).*/
+
+        // ADDED: Keep the focused panel updated if this was the focused task.
+        setFocusedTask((current) =>
+          current?.id === task.id ? updatedTask : current,
+        );
 
         setEditingId(null);
       })
-      .catch((error) => console.error("Error updating title:", error));
+      .catch((error) => console.error("Error updating task: ", error));
   };
 
   return (
@@ -154,6 +227,54 @@ function App() {
           </p>
         </div>
 
+        {/* ADDED: Focused task panel. Only appears after a task is selected. */}
+        {focusedTask && (
+          <div className="bg-[#222138] border border-[#6f55f6] rounded-xl p-5 mb-6 shadow-lg shadow-[#6f55f6]/10">
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex flex-col gap-2 min-w-0">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#a995ff]">
+                    Currently Focused Task
+                  </span>
+
+                  <h2 className="text-xl font-bold text-white break-words">
+                    {focusedTask.title}
+                  </h2>
+
+                  <p className="text-sm text-[#a1a0bd] leading-relaxed break-words">
+                    {focusedTask.description}
+                  </p>
+                </div>
+
+                <button
+                  className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition shrink-0"
+                  onClick={() => setFocusedTask(null)}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#6f55f6]/20 text-[#9d8aff] border border-[#6f55f6]/40">
+                  {focusedTask.status}
+                </span>
+
+                {focusedTask.priority && (
+                  <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#a1a0bd]/10 text-[#a1a0bd] border border-[#3b3a54]">
+                    {focusedTask.priority}
+                  </span>
+                )}
+              </div>
+
+              <div className="border-t border-[#3b3a54] pt-3">
+                <p className="text-xs text-[#777590]">
+                  Task ID: {focusedTask.id}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- TWO-COLUMN LAYOUT WRAPPER --- */}
         <div className="flex flex-col md:flex-row gap-6 items-start">
           {/* --- LEFT COLUMN: CREATE TASK FORM --- */}
@@ -167,6 +288,7 @@ function App() {
                 setNewTask({ ...newTask, title: e.target.value })
               }
             />
+
             <textarea
               className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] placeholder-[#a1a0bd] min-h-[100px] resize-none"
               placeholder="Enter task description"
@@ -182,7 +304,7 @@ function App() {
               <select
                 className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3.5 py-2.5 rounded-lg text-sm outline-none focus:border-[#6f55f6] appearance-none cursor-pointer"
                 // If newTask.priority has a default value the select will find its matching value from its option tags and display whats in there.
-                value={newTask.priority || "Medium"}
+                value={newTask.priority || "medium"}
                 onChange={(e) =>
                   setNewTask({ ...newTask, priority: e.target.value })
                 }
@@ -212,7 +334,16 @@ function App() {
             {tasks.map((task) => (
               <div
                 key={task.id}
-                className="bg-[#222138] border border-[#3b3a54] hover:border-[#6f55f6] rounded-xl p-4 transition shadow-md"
+                onClick={() => {
+                  if (editingId !== task.id) {
+                    handleFocus(task.id);
+                  }
+                }}
+                className={`rounded-xl p-4 transition shadow-md cursor-pointer ${
+                  focusedTask?.id === task.id
+                    ? "bg-[#302951] border border-[#6f55f6] shadow-lg shadow-[#6f55f6]/10"
+                    : "bg-[#222138] border border-[#3b3a54] hover:border-[#6f55f6]"
+                }`}
               >
                 {editingId === task.id ? (
                   /* --- EDIT MODE --- */
@@ -224,6 +355,7 @@ function App() {
                         setEditForm({ ...editForm, title: e.target.value })
                       }
                     />
+
                     <input
                       className="w-full bg-[#17162b] border border-[#3b3a54] text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-[#6f55f6]"
                       value={editForm.description || ""}
@@ -234,16 +366,24 @@ function App() {
                         })
                       }
                     />
+
                     <div className="flex gap-2 justify-end mt-1">
                       <button
                         className="bg-[#6f55f6] hover:bg-[#5b41e0] text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                        onClick={() => handleUpdate(task)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdate(task);
+                        }}
                       >
                         Save
                       </button>
+
                       <button
                         className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                        onClick={() => setEditingId(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(null);
+                        }}
                       >
                         Cancel
                       </button>
@@ -252,13 +392,24 @@ function App() {
                 ) : (
                   /* --- VIEW MODE --- */
                   <div className="flex justify-between items-start gap-4">
-                    <div className="flex flex-col gap-1">
-                      <h3 className="text-base font-semibold text-white">
-                        {task.title}
-                      </h3>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-semibold text-white">
+                          {task.title}
+                        </h3>
+
+                        {/* ADDED: Marks the task currently shown in the focus panel. */}
+                        {focusedTask?.id === task.id && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[#6f55f6]/20 text-[#a995ff] border border-[#6f55f6]/40">
+                            Currently Focused
+                          </span>
+                        )}
+                      </div>
+
                       <p className="text-sm text-[#a1a0bd]">
                         {task.description}
                       </p>
+
                       <div className="flex gap-2 mt-2">
                         <span className="text-[11px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#6f55f6]/20 text-[#9d8aff] border border-[#6f55f6]/40">
                           {task.status}
@@ -274,13 +425,20 @@ function App() {
                     <div className="flex flex-col gap-2 shrink-0">
                       <button
                         className="border border-[#3b3a54] hover:border-[#a1a0bd] text-[#a1a0bd] hover:text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                        onClick={() => handleEditClick(task)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditClick(task);
+                        }}
                       >
                         Edit
                       </button>
+
                       <button
                         className="bg-[#ff4d4d]/15 hover:bg-[#ff4d4d] text-[#ff4d4d] hover:text-white border border-[#ff4d4d]/30 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition"
-                        onClick={() => handleDelete(task.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(task.id);
+                        }}
                       >
                         Delete
                       </button>
