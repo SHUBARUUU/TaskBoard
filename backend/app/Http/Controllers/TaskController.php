@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+//* MODELS
 use App\Models\Task;
+
+//* SERVICES
+use App\Services\TaskService;
 
 use Illuminate\Http\Request;
 
 //* Controller -> Receives data, validates data, acts as the entry point for the datas.
 
-class TaskController extends Controller
-{   
+//? The flow of the system should be controller -> service -> repository layer.
+class TaskController extends Controller{   
     /*
     * Laravel apiResource Standard Method Mapping:
     * -----------------------------------------------------------
@@ -20,188 +24,82 @@ class TaskController extends Controller
     * destroy() -> DELETE /api/tasks/{id}  (Delete a specific item)
     */
 
-    /*
-     * The Request object in Laravel captures the entire HTTP envelope 
-     * received from the frontend (like React's fetch).
-     * 
-     * It holds:
-     * 1. URL Meta-data (Query strings like ?priority=high, HTTP method, IP address)
-     * 2. The Payload (The JSON body sent during POST/PUT requests)
-     * 
-     * In other words, Frontend always have a feedback regardless of what HTTP method you use. (Request object always catches does feedback) (Most frequent use of the Request object is for POST/PUT/PATCH)
-    */
+    protected $taskService;
 
-    // 1. GET /api/tasks 
-    // Triggered when React wants a list of ALL tasks
-    /*
-    The previous index function (GET method (GET every data.))
-        public function index(){
-            return Task::all();//   Returns the tasks
-        }
-    */
-        //* The updated index. Added backend filtering -> (Frontend filtering introduces bottlenecks)
-        public function index(Request $request){
-        //  --- DATABASE BLOAT ---
-
-        // 1. Start a database query. Like typing "SELECT * FROM tasks" but pausing before hitting Enter.
-        $query = Task::query();
-
-        // --- THE BLOAT: QUERY LOGIC START  ---
+    //  --- NEW: Inject the Service into the Controller ---
+    public function __construct(TaskService $taskService){
+            $this->taskService = $taskService;
+    }
+    
+    // --- REFACTORED: Clean index method ---
+    // Uses TaskService (inside uses TaskRepository)
+    public function index(Request $request){
         /*
         ? NOTE: Our current React app just fetches "/api/tasks", so all these IF statements get skipped.
          This is intentionally bloated to future-proof the API. When we eventually add a search bar 
          or a filter dropdown in React, this backend will already know how to handle the new URL parameters.
         */
 
-        // --- BUSINESS LOGIC AND DATABASE BLOAT ---
-        // Check if the URL has ?status=something
-        if ($request->has('status')) {
-            $query->where('status', $request->query('status'));
-        }
+        // 1. The Bouncer: Grab only the allowed filter parameters from the HTTP request
+        //  Ignores the other attributes of request such as its headers, tokens, etc..
+        //  Also builds an associative array the for it like url have status filters = ['status' => 'something']. It can also add more in the array if its not only status.
+        $filters = $request->only(['status', 'priority', 'search']);
 
-        // Check if the URL has ?priority=something
-        if ($request->has('priority')) {
-            $query->where('priority', $request->query('priority'));
-        }
+        // 2. The Manager: Pass the clean array to the Service
+        $tasks = $this->taskService->getAllTasks($filters);
 
-        // Check if the URL has ?search=something
-        if ($request->has('search')) {
-            $searchTerm = $request->query('search');
-            $query->where('title', 'LIKE', "%{$searchTerm}%");
-        }
-
-        // Always sort by newest first
-        $query->orderBy('created_at', 'desc');
-
-        // --- DATABASE BLOAT ---
-        // 2. The Worker: Execute the query based on whatever filters (if any) were applied above.
-        $tasks = $query->get();
-
-        // 3. The Messenger: Return them as JSON.
+        // 3. The Messenger: Return JSON to React
         return response()->json($tasks, 200);
     }
-
-    // 2. POST /api/tasks 
-    // Triggered when React sends a JSON payload to CREATE a new task
-    /*
-    The previous store function (POST method). -> Without validation and accepting blindly the requests getting received  
-        public function store(Request $request){
-            $task = Task::create($request->all());//    Creates a task from $request (JSON Format)
-
-            return response()->json($task, 201);
-        }
-    */
-    //* The updated store function. Added validation (Controllers job)
+    
+    // --- REFACTORED: Clean store method ---
+    // Added validation, business logic (inside taskService), and the appropriate repository layer (talks to the database.)
     public function store(Request $request){
-        // Laravel validate parses the string to be send to Validator objects (Deep inside the laravel framework). Will send an error(message and HTTP code) if failed.
+        // validate function returns an associative array after validating. Perfect for sending down to the taskService
         $validatedData = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'required|in:pending, completed',
-            'priority' => 'required|in:low,medium,low',
-        ]); 
+            'priority' => 'required|in:low,medium,high',
+        ]);
 
-        // --- BUSINESS LOGIC BLOAT ---
-        // Block anyone trying to create a task that is already finished.
-        if($validatedData['status'] === 'completed'){
-            return response()->json(['message' => 'Cheater! New tasks must begin with a pending status'], 422);
-        }
-
-        //  --- DATABASE BLOAT: Creating the validated data in controller---
-        $task = Task::create($validatedData);
+        //  Sends the array to the taskService function
+        $task = $this->taskService->createTask($validatedData);
 
         return response()->json($task, 201);
     }
-
-    // 3. GET /api/tasks/{id} 
-    // Triggered when React wants to view ONE specific task (e.g., /api/tasks/5)
-    public function show(string $id)
-    {
-        $task = Task::findOrFail($id);
+    // --- REFACTORED: Clean show method ---
+    //  Made a function dedicated for getting the task id in task service to be then pass to repository layer to actually talk to database and find it.
+    public function show(string $id){
+        $task = $this->taskService->getTaskById($id);
 
         return response()->json($task, 200);
     }
 
-    // 4. PUT /api/tasks/{id} 
-    // Triggered when React wants to UPDATE a specific task
-    /**
-     * The previous update function (PUT method)
-     * public function update(Request $request, string $id){
-     *      $task = Task::findOrFail($id);
-     *      $task ->update($validatedData);
-     *      return response()->json($task, 200)
-     * }
-     */
-    //* The updated update. Added validation as well (Still controller's job)
+    // -- REFACTORED: Clean update method ---
+    //  Combined concept of the store and show by implementing both of how they manage their datas in this function.
     public function update(Request $request, string $id){
-        // --- DATABASE BLOAT: Manually searching for the record ---
-        $task = Task::find($id);
-        
-        if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
-        }
+        //  Confirms and gets the object first if its existing in the database.
+        $task = $this->taskService->getTaskById($id);
 
-        // --- VALIDATION: Stays here, but adds to the size of the method ---
+        //  Validates the new set of data received.
         $validatedData = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
-        // --- BUSINESS LOGIC BLOAT: Hardcoded rules crammed into the controller ---
-        
-        // Rule A: If task is completed, you can't change its priority.
-        if ($task->status === 'completed' && isset($validatedData['priority'])) {
-            return response()->json(['error' => 'Cannot modify priority on a completed task.'], 422);
-        }
-
-        // Rule B: If they are marking it completed right now, let's pretend we need a timestamp
-        if (isset($validatedData['status']) && $validatedData['status'] === 'completed') {
-            $task->completed_at = now(); // Modifying the object directly based on a business rule
-        }
-
-        // --- DATABASE BLOAT: Saving the record ---
-        $task->update($validatedData);
+        //  If both passes the requirement then will be sent to the service layer. updateTask function
+        $task = $this->taskService->updateTask($task, $validatedData);
 
         return response()->json($task, 200);
     }
 
-    // 5. DELETE /api/tasks/{id} 
-    // Triggered when React wants to DELETE a specific task
-    /*
-        The previous destroy function (DELETE method)
-        public function destroy(string $id)
-        {
-            $task = Task::findOrFail($id);
+    public function destroy(string $id){
+       
+        $task = $this->taskService->getTaskById($id);
 
-            $task->delete();
+        $this->taskService->deleteTask($task);
 
-            return response()->json(null, 204);
-        }
-    */
-        public function destroy(string $id){
-        // 1. DATABASE BLOAT: Controller acting like a database query builder
-        $task = Task::find($id);
-
-        if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
-        }
-
-        // 2. BUSINESS LOGIC BLOAT: Controller acting like a manager making business decisions
-        
-        // Rule A: Prevent deleting a task created less than 5 minutes ago
-        if ($task->created_at && $task->created_at->diffInMinutes(now()) < 5) {
-            return response()->json(['message' => 'You must wait 5 minutes before deleting a newly created task.'], 422);
-        }
-
-        // Rule B: Prevent deleting tasks with long descriptions to avoid accidental data loss
-        if (strlen($task->description) > 100) {
-             return response()->json(['message' => 'Clear the detailed description before deleting this task.'], 422);
-        }
-
-        // 3. DATABASE BLOAT: Controller manually executing the delete command
-        $task->delete();
-
-        // 4. THE MESSENGER (Not bloat - this is what the controller actually SHOULD do)
-        return response()->json(['message' => 'Task deleted successfully'], 200);
+        return response()->json(null, 200);
     }
 }

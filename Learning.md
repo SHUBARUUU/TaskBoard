@@ -88,3 +88,6 @@ This project will also tackle Controller/Service/Repository Layers for backend.
 Controller -> the entry point of the data, validates and asks for layers to help.
 Service -> the business logic, this handles the programs logic when needed.
 Repository -> The one that literally talks to the database.
+
+Controller, Service, And Repository those three have rights on the object at hand (Task).
+They have rights on the class which in this case \App\Models\Task

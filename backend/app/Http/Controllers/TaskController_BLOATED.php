@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 
 //* Controller -> Receives data, validates data, acts as the entry point for the datas.
 
-class TaskController extends Controller
+class TaskController_BLOATED extends Controller
 {   
     /*
     * Laravel apiResource Standard Method Mapping:
@@ -40,10 +40,11 @@ class TaskController extends Controller
         }
     */
         //* The updated index. Added backend filtering -> (Frontend filtering introduces bottlenecks)
-        public function index(Request $request){
+    public function index(Request $request){
         //  --- DATABASE BLOAT ---
 
-        // 1. Start a database query. Like typing "SELECT * FROM tasks" but pausing before hitting Enter.
+        // 1. Start a database query. 
+        //  Like typing "SELECT * FROM tasks" but pausing before hitting Enter.
         $query = Task::query();
 
         // --- THE BLOAT: QUERY LOGIC START  ---
@@ -56,6 +57,9 @@ class TaskController extends Controller
         // --- BUSINESS LOGIC AND DATABASE BLOAT ---
         // Check if the URL has ?status=something
         if ($request->has('status')) {
+            //  Gets the string literal after checking if URL has status meaning (?status=) is in the URL
+            //  Forming WHERE status = (pending, completed) anything that starts after the " = " sign.
+            //  query() func focuses on the site's URL
             $query->where('status', $request->query('status'));
         }
 
